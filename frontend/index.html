@@ -55,7 +55,7 @@
                 <p class="text-gray-500 mb-8">只需几分钟，小财将为你量身定制资产配置方案</p>
                 <button onclick="startChat()" class="bg-primary text-white px-8 py-3 rounded-xl font-medium hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">开始咨询</button>
             </div>
-            <div id="chat-box" class="bg-white rounded-2xl shadow-sm hidden" style="height: 600px; display: none; flex-direction: column;">
+            <div id="chat-box" class="bg-white rounded-2xl shadow-sm" style="height: 600px; display: none; flex-direction: column;">
                 <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
                 <div class="border-t p-4 flex gap-2">
                     <input id="chat-input" type="text" placeholder="输入你的回复..." class="flex-1 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" onkeypress="if(event.key==='Enter') sendMessage()">
@@ -117,10 +117,11 @@
     </div>
 
     <script>
-        // API 地址配置：本地开发用 localhost，生产环境改为你部署的后端地址
-        const API_BASE = window.location.hostname === 'localhost' 
-            ? 'http://localhost:8000' 
-            : 'https://你的后端地址';  // ← 部署后改成你的真实后端地址
+        // API 地址配置：本地开发用 localhost，部署后请改成你的后端地址
+        // GitHub Pages 部署说明：如果后端未部署，前端会回退到静态演示数据
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+            ? 'http://localhost:8000'
+            : (window.localStorage.getItem('api_base') || 'https://你的后端地址');
         let sessionId = 'user_' + Date.now();
         let chatStarted = false;
 
@@ -202,11 +203,26 @@
         // 加载配置方案
         async function loadPlan() {
             try {
+                // 优先尝试通过 session 生成真实方案
                 const res = await fetch(`${API_BASE}/plan/generate/${sessionId}`, { method: 'POST' });
-                const data = await res.json();
-                if (data.plan) renderPlan(data.plan);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.plan) {
+                        renderPlan(data.plan);
+                        return;
+                    }
+                }
+                // 如果 session 方案失败，尝试示例方案
+                const exRes = await fetch(`${API_BASE}/plan/example`);
+                if (exRes.ok) {
+                    const exData = await exRes.json();
+                    renderPlan(exData);
+                    return;
+                }
+                throw new Error('后端不可用');
             } catch (e) {
-                // 显示示例数据
+                console.log('后端未连接，使用演示数据');
+                // 回退到静态演示数据
                 renderPlan({
                     defense_layer: { total_weight: 0.4, description: "防御层" },
                     core_layer: { total_weight: 0.45, description: "核心层" },
@@ -296,6 +312,50 @@
 
         // 加载压力测试
         async function loadStress() {
+            try {
+                const res = await fetch(`${API_BASE}/plan/stress-test/${sessionId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.stress_test && data.stress_test.details) {
+                        renderStress(data.stress_test.details);
+                        return;
+                    }
+                }
+                throw new Error('后端不可用');
+            } catch (e) {
+                console.log('后端未连接，使用演示数据');
+                renderStaticStress();
+            }
+        }
+
+        function renderStress(details) {
+            document.getElementById('stress-list').innerHTML = details.map((s, i) => `
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-bold text-gray-900">${s.scenario}</span>
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">历史数据</span>
+                            </div>
+                            <p class="text-sm text-gray-500">${s.period || ''}</p>
+                        </div>
+                        <div class="text-right flex gap-6">
+                            <div><p class="text-xs text-gray-400 mb-1">你的组合</p><p class="text-lg font-bold text-primary">${s.portfolio_return}</p></div>
+                            <div><p class="text-xs text-gray-400 mb-1">沪深300</p><p class="text-lg font-bold text-red-500">${s.benchmark_return}</p></div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center gap-3">
+                        <span class="text-xs text-gray-400 w-20">损失对比</span>
+                        <div class="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                            <div class="h-full bg-primary rounded-full" style="width: ${Math.min(Math.abs(parseFloat(s.portfolio_return)) / Math.max(Math.abs(parseFloat(s.benchmark_return)), 0.01) * 100, 100)}%"></div>
+                        </div>
+                        <span class="text-xs text-primary font-medium">组合保护效果显著</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderStaticStress() {
             const scenarios = [
                 { name: "2008年金融危机", desc: "全球金融危机，A股从6124点暴跌到1664点", portfolio: "-12.5%", benchmark: "-65.2%", width: '20%' },
                 { name: "2015年股灾", desc: "A股杠杆牛转熊，三轮千股跌停", portfolio: "-8.3%", benchmark: "-42.8%", width: '20%' },

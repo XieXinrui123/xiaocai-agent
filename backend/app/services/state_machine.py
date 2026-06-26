@@ -4,6 +4,7 @@
 """
 from enum import Enum, auto
 from typing import Optional, Callable
+import re
 from app.models.user_profile import UserProfile, InvestmentGoal, RiskLevel
 
 
@@ -169,7 +170,6 @@ class StateMachine:
                 if keyword in msg:
                     profile.goal = goal
                     # 尝试提取金额（简单匹配数字+万）
-                    import re
                     amount_match = re.search(r'(\d+)\s*万', msg)
                     if amount_match:
                         profile.goal_amount = float(amount_match.group(1))
@@ -211,7 +211,6 @@ class StateMachine:
         
         elif state == KYCState.FUND_INFO:
             # 解析资金信息
-            import re
             amount_match = re.search(r'(\d+)\s*万', msg)
             if amount_match:
                 profile.invest_amount = float(amount_match.group(1))
@@ -225,7 +224,6 @@ class StateMachine:
         
         elif state == KYCState.TIMELINE_CONFIRM:
             # 解析投资期限
-            import re
             year_match = re.search(r'(\d+)\s*年', msg)
             if year_match:
                 profile.goal_timeline = int(year_match.group(1))

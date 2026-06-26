@@ -4,6 +4,7 @@
 """
 from dataclasses import dataclass, field
 from typing import Optional
+import math
 from app.models.user_profile import UserProfile, RiskLevel
 
 
@@ -187,7 +188,6 @@ class AllocationEngine:
         )
         
         # 简化计算组合风险（假设层间相关系数为 0.3）
-        import math
         corr = 0.3
         expected_risk = math.sqrt(
             (defense_pct * self.EXPECTED_RISKS["defense"])**2 +
