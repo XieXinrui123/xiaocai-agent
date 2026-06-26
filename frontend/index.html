@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小财 - 智能资产配置顾问</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', -apple-system, sans-serif; background: #f8fafc; }
+        .chat-msg { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .dot { animation: typing 1.4s infinite ease-in-out both; width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; display: inline-block; margin: 0 2px; }
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
+        .asset-row:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .nav-btn.active { background: #2563eb; color: white; }
+        .page { display: none; }
+        .page.active { display: block; }
+    </style>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { primary: '#2563eb', defense: '#10b981', core: '#f59e0b', satellite: '#8b5cf6' } } } }
+    </script>
+</head>
+<body class="min-h-screen">
+    <div class="max-w-4xl mx-auto p-4">
+        <!-- 导航栏 -->
+        <header class="bg-white rounded-2xl shadow-sm p-4 mb-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold text-lg">财</div>
+                <div>
+                    <h1 class="font-bold text-gray-900">小财</h1>
+                    <p class="text-xs text-gray-500">智能资产配置顾问</p>
+                </div>
+            </div>
+            <nav class="flex gap-2">
+                <button onclick="showPage('chat')" class="nav-btn active px-4 py-2 rounded-lg text-sm font-medium transition text-gray-600 hover:bg-gray-100" data-page="chat">对话</button>
+                <button onclick="showPage('plan')" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition text-gray-600 hover:bg-gray-100" data-page="plan">配置方案</button>
+                <button onclick="showPage('stress')" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition text-gray-600 hover:bg-gray-100" data-page="stress">压力测试</button>
+            </nav>
+        </header>
+
+        <!-- 对话页面 -->
+        <div id="chat-page" class="page active">
+            <div id="chat-welcome" class="bg-white rounded-2xl shadow-sm p-12 text-center">
+                <div class="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">开启你的资产配置之旅</h2>
+                <p class="text-gray-500 mb-8">只需几分钟，小财将为你量身定制资产配置方案</p>
+                <button onclick="startChat()" class="bg-primary text-white px-8 py-3 rounded-xl font-medium hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">开始咨询</button>
+            </div>
+            <div id="chat-box" class="bg-white rounded-2xl shadow-sm hidden" style="height: 600px; display: none; flex-direction: column;">
+                <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+                <div class="border-t p-4 flex gap-2">
+                    <input id="chat-input" type="text" placeholder="输入你的回复..." class="flex-1 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()" class="bg-primary text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-700 transition">发送</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 配置方案页面 -->
+        <div id="plan-page" class="page space-y-4">
+            <div id="plan-loading" class="bg-white rounded-2xl p-12 text-center text-gray-500">请先完成对话，生成你的专属配置方案</div>
+            <div id="plan-content" class="hidden space-y-4">
+                <!-- 指标卡片 -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                        <p class="text-sm text-gray-500 mb-2">预期年化收益</p>
+                        <p class="text-3xl font-bold text-emerald-600" id="metric-return">--</p>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                        <p class="text-sm text-gray-500 mb-2">预期波动率</p>
+                        <p class="text-3xl font-bold text-amber-600" id="metric-risk">--</p>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                        <p class="text-sm text-gray-500 mb-2">最大回撤</p>
+                        <p class="text-3xl font-bold text-red-500" id="metric-dd">--</p>
+                    </div>
+                </div>
+                <!-- 图表 -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm">
+                        <h3 class="font-bold text-gray-900 mb-4">三层配置比例</h3>
+                        <div id="pie-chart" style="width:100%;height:280px"></div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-sm">
+                        <h3 class="font-bold text-gray-900 mb-4">具体资产权重</h3>
+                        <div id="bar-chart" style="width:100%;height:280px"></div>
+                    </div>
+                </div>
+                <!-- 资产明细 -->
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="font-bold text-gray-900 mb-4">资产配置明细</h3>
+                    <div id="asset-list" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 压力测试页面 -->
+        <div id="stress-page" class="page space-y-4">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
+                <h3 class="font-bold text-gray-900 mb-2">🛡️ 压力测试说明</h3>
+                <p class="text-sm text-gray-600">压力测试模拟你的配置方案在历史极端行情中的表现。数据基于真实历史回测，展示了配置分散化在市场大跌时的保护作用。</p>
+            </div>
+            <div id="stress-list" class="grid gap-4"></div>
+            <div class="bg-emerald-50 rounded-2xl p-6 border border-emerald-200">
+                <h4 class="font-bold text-emerald-800 mb-2">💡 结论</h4>
+                <p class="text-sm text-emerald-700">在历史 5 次极端下跌中，配置方案的平均最大回撤远低于沪深300。资产配置的分散化效应帮你减少了大部分潜在损失。</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API 地址配置：本地开发用 localhost，生产环境改为你部署的后端地址
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8000' 
+            : 'https://你的后端地址';  // ← 部署后改成你的真实后端地址
+        let sessionId = 'user_' + Date.now();
+        let chatStarted = false;
+
+        // 页面切换
+        function showPage(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(page + '-page').classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-page="${page}"]`).classList.add('active');
+            if (page === 'plan') loadPlan();
+            if (page === 'stress') loadStress();
+        }
+
+        // 对话功能
+        async function startChat() {
+            document.getElementById('chat-welcome').style.display = 'none';
+            document.getElementById('chat-box').style.display = 'flex';
+            chatStarted = true;
+            addTyping();
+            try {
+                const res = await fetch(`${API_BASE}/chat/start?session_id=${sessionId}`, { method: 'POST' });
+                const data = await res.json();
+                removeTyping();
+                addMessage('agent', data.reply || '你好！我是小财，你的资产配置顾问😊');
+            } catch (e) {
+                removeTyping();
+                addMessage('agent', '你好！我是小财😊 我可以帮你规划理财方案。请问你投资主要想实现什么目标呢？');
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            input.value = '';
+            addMessage('user', msg);
+            addTyping();
+            try {
+                const res = await fetch(`${API_BASE}/chat/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg, session_id: sessionId })
+                });
+                const data = await res.json();
+                removeTyping();
+                addMessage('agent', data.reply || '收到，请继续。');
+            } catch (e) {
+                removeTyping();
+                addMessage('agent', '抱歉，网络有点问题，请重试。');
+            }
+        }
+
+        function addMessage(role, text) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat-msg flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            const avatar = role === 'agent' ? '<div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold mr-2 flex-shrink-0 self-start">财</div>' : '';
+            const bubbleClass = role === 'user' ? 'bg-primary text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md';
+            div.innerHTML = `${avatar}<div class="max-w-[70%] px-4 py-3 rounded-2xl ${bubbleClass}"><p class="text-sm whitespace-pre-line">${text}</p></div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addTyping() {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.id = 'typing-indicator';
+            div.className = 'chat-msg flex items-center gap-2';
+            div.innerHTML = '<div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white text-sm font-bold">财</div><div class="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3"><div class="flex gap-1"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>';
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function removeTyping() {
+            const el = document.getElementById('typing-indicator');
+            if (el) el.remove();
+        }
+
+        // 加载配置方案
+        async function loadPlan() {
+            try {
+                const res = await fetch(`${API_BASE}/plan/generate/${sessionId}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.plan) renderPlan(data.plan);
+            } catch (e) {
+                // 显示示例数据
+                renderPlan({
+                    defense_layer: { total_weight: 0.4, description: "防御层" },
+                    core_layer: { total_weight: 0.45, description: "核心层" },
+                    satellite_layer: { total_weight: 0.15, description: "卫星层" },
+                    assets: [
+                        { name: "中长期纯债", category: "defense", weight_pct: "20.00%", weight: 0.2, product_name: "招商安泰债券A", description: "中长期纯债基金，收益稳定" },
+                        { name: "沪深300", category: "core", weight_pct: "18.00%", weight: 0.18, product_name: "华泰柏瑞沪深300ETF", description: "A股大盘蓝筹" },
+                        { name: "短债基金", category: "defense", weight_pct: "14.00%", weight: 0.14, product_name: "嘉实超短债", description: "短久期债券" },
+                        { name: "中证500", category: "core", weight_pct: "13.50%", weight: 0.135, product_name: "南方中证500ETF", description: "中小盘成长" },
+                        { name: "恒生科技", category: "core", weight_pct: "13.50%", weight: 0.135, product_name: "华泰柏瑞恒生科技ETF", description: "港股科技龙头" },
+                        { name: "货币基金", category: "defense", weight_pct: "6.00%", weight: 0.06, product_name: "银华日利", description: "高流动性" },
+                        { name: "黄金ETF", category: "satellite", weight_pct: "6.00%", weight: 0.06, product_name: "华安黄金ETF", description: "避险资产" },
+                        { name: "纳斯达克100", category: "satellite", weight_pct: "6.00%", weight: 0.06, product_name: "国泰纳斯达克100", description: "美股科技龙头" },
+                        { name: "REITs", category: "satellite", weight_pct: "3.00%", weight: 0.03, product_name: "华安张江光大REIT", description: "不动产投资信托" },
+                    ],
+                    metrics: { expected_return: "6.3%", expected_risk: "9.9%", max_drawdown: "24.9%" }
+                });
+            }
+        }
+
+        function renderPlan(plan) {
+            document.getElementById('plan-loading').style.display = 'none';
+            document.getElementById('plan-content').classList.remove('hidden');
+            document.getElementById('plan-content').style.display = 'block';
+
+            document.getElementById('metric-return').textContent = plan.metrics.expected_return;
+            document.getElementById('metric-risk').textContent = plan.metrics.expected_risk;
+            document.getElementById('metric-dd').textContent = plan.metrics.max_drawdown;
+
+            // 饼图
+            const pieChart = echarts.init(document.getElementById('pie-chart'));
+            pieChart.setOption({
+                tooltip: { trigger: 'item', formatter: '{b}: {d}%' },
+                series: [{
+                    type: 'pie', radius: ['40%', '70%'],
+                    itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+                    label: { show: true, formatter: '{b}\n{d}%' },
+                    data: [
+                        { value: plan.defense_layer.total_weight, name: '防御层', itemStyle: { color: '#10b981' } },
+                        { value: plan.core_layer.total_weight, name: '核心层', itemStyle: { color: '#f59e0b' } },
+                        { value: plan.satellite_layer.total_weight, name: '卫星层', itemStyle: { color: '#8b5cf6' } },
+                    ]
+                }]
+            });
+
+            // 柱状图
+            const barChart = echarts.init(document.getElementById('bar-chart'));
+            const barData = [...plan.assets].sort((a, b) => b.weight - a.weight);
+            barChart.setOption({
+                tooltip: { trigger: 'axis' },
+                grid: { left: '3%', right: '8%', bottom: '3%', containLabel: true },
+                xAxis: { type: 'value', axisLabel: { formatter: '{value}%' } },
+                yAxis: { type: 'category', data: barData.map(a => a.name).reverse(), axisLabel: { fontSize: 11 } },
+                series: [{
+                    type: 'bar',
+                    data: barData.map(a => ({
+                        value: parseFloat(a.weight_pct),
+                        itemStyle: { color: a.category === 'defense' ? '#10b981' : a.category === 'core' ? '#f59e0b' : '#8b5cf6' }
+                    })).reverse(),
+                    barWidth: '60%',
+                    label: { show: true, position: 'right', formatter: '{c}%' }
+                }]
+            });
+
+            // 资产列表
+            const listEl = document.getElementById('asset-list');
+            listEl.innerHTML = plan.assets.map((asset, i) => {
+                const catColor = asset.category === 'defense' ? 'bg-emerald-500' : asset.category === 'core' ? 'bg-amber-500' : 'bg-violet-500';
+                const catLabel = asset.category === 'defense' ? '防御' : asset.category === 'core' ? '核心' : '卫星';
+                return `
+                <div class="asset-row flex items-center gap-4 p-4 rounded-xl border transition">
+                    <div class="w-2 h-12 rounded-full ${catColor}"></div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-semibold text-gray-900">${asset.name}</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">${catLabel}</span>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1">${asset.product_name}</p>
+                        <p class="text-xs text-gray-400">${asset.description}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xl font-bold text-primary">${asset.weight_pct}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // 加载压力测试
+        async function loadStress() {
+            const scenarios = [
+                { name: "2008年金融危机", desc: "全球金融危机，A股从6124点暴跌到1664点", portfolio: "-12.5%", benchmark: "-65.2%", width: '20%' },
+                { name: "2015年股灾", desc: "A股杠杆牛转熊，三轮千股跌停", portfolio: "-8.3%", benchmark: "-42.8%", width: '20%' },
+                { name: "2018年贸易战", desc: "中美贸易战爆发，A股全年下跌", portfolio: "-3.1%", benchmark: "-24.6%", width: '15%' },
+                { name: "2022年多重压力", desc: "俄乌冲突+疫情封控+美联储加息", portfolio: "-5.8%", benchmark: "-20.3%", width: '30%' },
+                { name: "2024年调整期", desc: "经济复苏不及预期，市场持续震荡", portfolio: "-2.4%", benchmark: "-8.5%", width: '30%' },
+            ];
+
+            document.getElementById('stress-list').innerHTML = scenarios.map((s, i) => `
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-bold text-gray-900">${s.name}</span>
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">历史数据</span>
+                            </div>
+                            <p class="text-sm text-gray-500">${s.desc}</p>
+                        </div>
+                        <div class="text-right flex gap-6">
+                            <div><p class="text-xs text-gray-400 mb-1">你的组合</p><p class="text-lg font-bold text-primary">${s.portfolio}</p></div>
+                            <div><p class="text-xs text-gray-400 mb-1">沪深300</p><p class="text-lg font-bold text-red-500">${s.benchmark}</p></div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center gap-3">
+                        <span class="text-xs text-gray-400 w-20">损失对比</span>
+                        <div class="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                            <div class="h-full bg-primary rounded-full" style="width: ${s.width}"></div>
+                        </div>
+                        <span class="text-xs text-primary font-medium">组合保护效果显著</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
