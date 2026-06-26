@@ -121,7 +121,7 @@
         // GitHub Pages 部署说明：如果后端未部署，前端会回退到静态演示数据
         const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
             ? 'http://localhost:8000'
-            : (window.localStorage.getItem('api_base') || 'https://你的后端地址');
+            : (window.localStorage.getItem('api_base') || 'https://api-cbgdhsiiyz.cn-hangzhou.fcapp.run');
         let sessionId = 'user_' + Date.now();
         let chatStarted = false;
 
